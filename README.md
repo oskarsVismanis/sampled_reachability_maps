@@ -14,6 +14,12 @@ Clone repository somewhere, then `pip3 install -e .` to install in editable mode
 See `scripts` for samples. The samples create reachability maps for a Tiago++ mobile manipulator.
 
 - Reachability maps can be created by either sampling joint positions and using forward kinematics (recommended) or by sampling end-effector poses and computing inverse kinematics (much slower)
+
+```bash
+cd ~/workspace/gripper_ws/src/sampled_reachability_maps/scripts
+python3 create_fk_reachability_map.py
+```
+
 - The maps store two metrics for computing the reachability of every 6D voxel: 
   1. The maximum *Manipulability* (Yoshikawa metric) among all the joint configurations sampled that lead to the end-effector occupying the 6D voxel. This is the default metric.
   2. The number of joint configurations that lead to the end-effector occupying the 6D voxel (i.e. the no. of visitations of every 6D voxel).

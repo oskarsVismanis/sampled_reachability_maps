@@ -26,15 +26,20 @@ dtype = torch.float32 # Choose float32 or 64 etc.
 
 
 ## Settings for the reachability map:
-robot_urdf = "tiago_dual.urdf"
-name_end_effector = "gripper_left_grasping_frame" # "arm_left_tool_link"
+# robot_urdf = "tiago_dual.urdf"
+robot_urdf = "pmb2_ar4.urdf"
+# name_end_effector = "gripper_left_grasping_frame" # "arm_left_tool_link"
+name_end_effector = "ar4_ee_link"
 name_base_link = "base_footprint"
-n_dof = 8 # Implied from the URDF and chosen links
+# n_dof = 8 # Implied from the URDF and chosen links
 use_torso = False
-n_dof = 8 # Implied from the URDF and chosen links. 'use_torso=False' will reduce this by one in practice
+# n_dof = 8 # Implied from the URDF and chosen links. 'use_torso=False' will reduce this by one in practice
+n_dof = 6
 # Number of DOFs and joint limits
-joint_pos_min = torch.tensor([0.0, -1.1780972451, -1.1780972451, -0.785398163397, -0.392699081699, -2.09439510239, -1.41371669412, -2.09439510239], dtype=dtype, device=d)
-joint_pos_max = torch.tensor([+0.35, +1.57079632679, +1.57079632679, +3.92699081699, +2.35619449019, +2.09439510239, +1.41371669412, +2.09439510239], dtype=dtype, device=d)
+# joint_pos_min = torch.tensor([0.0, -1.1780972451, -1.1780972451, -0.785398163397, -0.392699081699, -2.09439510239, -1.41371669412, -2.09439510239], dtype=dtype, device=d)
+joint_pos_min = torch.tensor([-2.96705972839, -0.73303828584, -1.55334303427, -2.87979326579, -1.83259571459, -2.70526034059], dtype=dtype, device=d)
+# joint_pos_max = torch.tensor([+0.35, +1.57079632679, +1.57079632679, +3.92699081699, +2.35619449019, +2.09439510239, +1.41371669412, +2.09439510239], dtype=dtype, device=d)
+joint_pos_max = torch.tensor([+2.96705972839, +1.57079632679, +0.90757121104, +2.87979326579, +1.83259571459, +2.70526034059], dtype=dtype, device=d)
 ## Build kinematic chain from URDF
 print("[Building kinematic chain from URDF...]:\n...\n...")
 chain = pk.build_serial_chain_from_urdf(open(robot_urdf).read(), name_end_effector)
@@ -70,17 +75,22 @@ n_trials   = 15
 ## Create 6D reachability map tensor
 num_values = 6+2 # Values in every voxel. Reachability map will store the 6D pose + two values: 'Visitation Frequency' and 'Manipulability'
 # NOTE: For now we use an existing fk reach map and load the voxels
-with open(os.getcwd()+'/../maps/gripper_left/filt_reach_map_gripper_left_grasping_frame_torso_False_0.05_2022-08-28-19-59-12.pkl','rb') as f:
+fk_folder = '/../maps/1_10_25__6e6_500/FK/'
+# fk_reach_map_loc = '/../maps/gripper_left/filt_reach_map_gripper_left_grasping_frame_torso_False_0.05_2022-08-28-19-59-12.pkl'
+fk_reach_map = 'filt_reach_map_ar4_ee_link_torso_False_0.05_2025-10-01-14-47-08.pkl'
+with open(os.getcwd()+fk_folder+fk_reach_map,'rb') as f:
     reach_map = pickle.load(f)
     nonzero_rows = np.abs(reach_map).sum(axis=1) > 0
     reach_map = reach_map[nonzero_rows] # Remove zero rows if they exist
     num_voxels = reach_map.shape[0]
     reach_map[:,6:8] = 0.0 # keep the voxel poses but set the scores to zeros
     reach_map = torch.tensor(reach_map, dtype=dtype)
-    print("[Loaded existing FK reach map: filt_reach_map_gripper_left_grasping_frame_torso_False_0.05_2022-08-28-19-59-12.pkl]")
+    print("[Loaded existing FK reach map: "+ fk_reach_map+"]")
     print("[Number of 6D Voxels]: " + str(num_voxels))
 # For speed, also create/load the inverse transforms of the voxels since we need these for error calculations
-with open(os.getcwd()+'/../maps/gripper_left/inv_filt_reach_map_gripper_left_grasping_frame_torso_False_0.05_2022-08-28-19-59-12.pkl','rb') as f:
+# inv_tf_loc = '/../maps/gripper_left/inv_filt_reach_map_gripper_left_grasping_frame_torso_False_0.05_2022-08-28-19-59-12.pkl'
+inv_tf = 'inv_filt_reach_map_ar4_ee_link_torso_False_0.05_2025-10-01-14-47-08.pkl'
+with open(os.getcwd()+fk_folder+inv_tf,'rb') as f:
     inv_transfs = pickle.load(f)["inv_transf_batch"] # this is already a torch tensor
 gc.collect()
 # num_voxels = x_bins*y_bins*z_bins*roll_bins*pitch_bins*yaw_bins

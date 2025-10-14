@@ -25,36 +25,51 @@ dtype = torch.float32 # Choose float32 or 64 etc.
 
 
 ## Settings for the reachability map:
-robot_urdf = "tiago_dual.urdf"
-name_end_effector = "gripper_left_grasping_frame" # "arm_left_tool_link"
+# robot_urdf = "tiago_dual.urdf"
+robot_urdf = "pmb2_ar4.urdf"
+# name_end_effector = "gripper_left_grasping_frame" # "arm_left_tool_link"
+name_end_effector = "ar4_gripper_grasping_link" # "ar4_ee_link"
 name_base_link = "base_footprint"
+# name_base_link = "ar4_base_link"
 use_torso = False
-n_dof = 8 # Implied from the URDF and chosen links. 'use_torso=False' will reduce this by one in practice
+# n_dof = 8 # Implied from the URDF and chosen links. 'use_torso=False' will reduce this by one in practice
+n_dof = 6
 # Number of DOFs and joint limits
-joint_pos_min = torch.tensor([0.0, -1.1780972451, -1.1780972451, -0.785398163397, -0.392699081699, -2.09439510239, -1.41371669412, -2.09439510239], dtype=dtype, device=d)
-joint_pos_max = torch.tensor([+0.35, +1.57079632679, +1.57079632679, +3.92699081699, +2.35619449019, +2.09439510239, +1.41371669412, +2.09439510239], dtype=dtype, device=d)
+# joint_pos_min = torch.tensor([0.0, -1.1780972451, -1.1780972451, -0.785398163397, -0.392699081699, -2.09439510239, -1.41371669412, -2.09439510239], dtype=dtype, device=d)
+joint_pos_min = torch.tensor([-2.96705972839, -0.73303828584, -1.55334303427, -2.87979326579, -1.83259571459, -2.70526034059], dtype=dtype, device=d)
+# joint_pos_max = torch.tensor([+0.35, +1.57079632679, +1.57079632679, +3.92699081699, +2.35619449019, +2.09439510239, +1.41371669412, +2.09439510239], dtype=dtype, device=d)
+joint_pos_max = torch.tensor([+2.96705972839, +1.57079632679, +0.90757121104, +2.87979326579, +1.83259571459, +2.70526034059], dtype=dtype, device=d)
 joint_pos_centers = joint_pos_min + (joint_pos_max - joint_pos_min)/2
 joint_pos_range_sq = (joint_pos_max - joint_pos_min).pow(2)/4
 ## Build kinematic chain from URDF
 print("[Building kinematic chain from URDF...]:\n...\n...")
-chain = pk.build_serial_chain_from_urdf(open(robot_urdf).read(), name_end_effector)
+chain = pk.build_serial_chain_from_urdf(open(robot_urdf).read(), name_end_effector, name_base_link)
+print("=urdf_chain=")
+print(chain)
+print("=urdf_chain=")
 chain = chain.to(dtype=dtype, device=d)
 assert (len(chain.get_joint_parameter_names()) == n_dof), "Incorrect number of DOFs set"
 print("...\n...")
 # Number of Forward Kinematic solutions to sample
-N_fk = 1280000000 # 25600000000 # Sampling 20^8 joint configurations. NOTE: Tweak this paramter based on GPU Memory available
+# N_fk = 1280000000 # 25600000000 # Sampling 20^8 joint configurations. NOTE: Tweak this paramter based on GPU Memory available
+N_fk = 10000000 # for Tiago++ 1000000 works (3.76e+02s); 5000000 works (4.07e+02s); 10000000 doesn't work
+               # for pmb2_ar4 5000000 works (1.96e+02s); 6000000 works (1.95e+02s)
 # Map resolution and limits
 angular_res = np.pi/8 # or 22.5 degrees per bin)
 r_lim = [-np.pi, np.pi] # NOTE: Using 'intrinsic' euler rotations in XYZ
 p_lim = [-np.pi/2, np.pi/2]
+# p_lim = [-np.pi, np.pi]
 yaw_lim = [-np.pi, np.pi]
 roll_bins = math.ceil((2*np.pi)/angular_res) # 16
 pitch_bins = math.ceil((np.pi)/angular_res)  # 8. Only half the bins needed (half elevation and full azimuth sufficient to cover sphere)
 yaw_bins = math.ceil((2*np.pi)/angular_res)  # 16
 cartesian_res = 0.05 # metres
-x_lim = [-1.2, 1.2] #[-1.0, 1.0] # min,max in metres (Set these as per your robot links)
-y_lim = [-0.6, 1.35]#[-0.4, 1.15]
-z_lim = [-0.35, 2.1]#[-0.15, 1.9]
+# x_lim = [-1.2, 1.2] #[-1.0, 1.0] # min,max in metres (Set these as per your robot links)
+# y_lim = [-0.6, 1.35]#[-0.4, 1.15]
+# z_lim = [-0.35, 2.1]#[-0.15, 1.9]
+x_lim = [-1.2, 1.2]
+y_lim = [-1.2, 1.2]
+z_lim = [-0.5, 1.4]
 x_bins = math.ceil((x_lim[1] - x_lim[0])/cartesian_res)
 y_bins = math.ceil((y_lim[1] - y_lim[0])/cartesian_res)
 z_bins = math.ceil((z_lim[1] - z_lim[0])/cartesian_res)
@@ -98,12 +113,24 @@ for i in range(num_loops):
 
     # Sample joints
     th_batch = sampling_distr.sample([N_fk_loop])
-    if not use_torso:
-        # Set torso joint pos to zero
-        th_batch[:,0] = torch.tensor(0.0,dtype=dtype,device=d)
+    # if not use_torso:
+    #     # Set torso joint pos to zero
+    #     th_batch[:,0] = torch.tensor(0.0,dtype=dtype,device=d)
     ee_transf_batch = chain.forward_kinematics(th_batch).get_matrix()
+
+    # added nan/inf check
+    # if not torch.isfinite(ee_transf_batch).all():
+    #     print(f"[WARNING] NaN/Inf detected in FK transforms at loop {i}")
+    #     continue
+    
     torch.cuda.empty_cache() # Keep clearing cache to get rid of redundant variables
     poses_6d = torch.hstack((ee_transf_batch[:,:3,3], pk.transforms.matrix_to_euler_angles(ee_transf_batch[:,:3,:3], 'XYZ'))) # NOTE: Using 'intrinsic' euler rotations in XYZ
+    
+    # added nan/inf check
+    # if not torch.isfinite(poses_6d).all():
+    #     print(f"[WARNING] NaN/Inf detected in poses_6d at loop {i}")
+    #     continue
+
     # Get indices by subtracting lower lim and dividing by resolution
     indices_6d = poses_6d - torch.tensor([x_lim[0],y_lim[0],z_lim[0],r_lim[0],p_lim[0],yaw_lim[0]], dtype=dtype, device=d)
     indices_6d /= torch.tensor([cartesian_res,cartesian_res,cartesian_res,angular_res,angular_res,angular_res], dtype=dtype, device=d)
@@ -142,10 +169,24 @@ for i in range(num_loops):
     # torch.cuda.empty_cache()
     # Compute the Yoshikawa manipulability measure and copy to CPU
     M = torch.det(J @ torch.transpose(J,1,2)).cpu()
+
+    # added nan/inf check
+    # if not torch.isfinite(M).all():
+    #     print(f"[WARNING] NaN/Inf detected in manipulability at loop {i}")
+    #     M = torch.nan_to_num(M, nan=0.0, posinf=1e6, neginf=-1e6)
+
     del J
     torch.cuda.empty_cache()
 
     # Add computed pose and manipulability to Reachability Map
+
+    # print(torch.max(indices_6d[0]), x_bins)
+    # print(torch.max(indices_6d[1]), y_bins)
+    # print(torch.max(indices_6d[2]), z_bins)
+    # print(torch.max(indices_6d[3]), roll_bins)
+    # print(torch.max(indices_6d[4]), pitch_bins)
+    # print(torch.max(indices_6d[5]), yaw_bins)
+
     reach_map[indices_6d,:6] = poses_6d # Save pose at appropriate index
 
     # Max Manipulability
@@ -171,6 +212,11 @@ for i in range(num_loops):
         # Save reachability map to file (as numpy pkl)
         nonzero_rows = torch.abs(reach_map).sum(dim=1) > 0
         reach_map_nonzero = reach_map[nonzero_rows].numpy()
+
+        # added nan/inf check
+        # if not np.isfinite(reach_map_nonzero).all():
+        #     print("[WARNING] NaN/Inf present in reach_map_nonzero before saving")
+        #     reach_map_nonzero = np.nan_to_num(reach_map_nonzero, nan=0.0, posinf=1e6, neginf=-1e6)
 
         with open(reach_map_file_path+reach_map_file_name+'.pkl', 'wb') as f:            
             pickle.dump(reach_map_nonzero,f) # Save only non-zero entries
@@ -213,27 +259,43 @@ if post_process:
     # that lead to self-collisions. However, this will still give us a reasonable but optimistic reachability score
     # Remove points that are on or below ground
     reach_map_filtered = reach_map_nonzero[reach_map_nonzero[:,2] > 0]
-    # Specific filtering for the Tiago++ robot:
-    # Block 0: Base: Don't admit points that are (y < 0.3 & (x between -0.32 and 0.32) & (z between 0.0 and 0.383)
-    idxs = np.logical_not((reach_map_filtered[:,1] <= 0.3) \
-        & (reach_map_filtered[:,0] >= -0.32) & (reach_map_filtered[:,0] <= 0.32) \
+    # Specific filtering for PMB2_AR4 robot:
+    # Block 0: Base: Don't admit points that are ((y between -0.32 and 0.32) & (x between -0.32 and 0.32) & (z between 0.0 and 0.383))
+    idxs = np.logical_not((reach_map_filtered[:,0] >= -0.32) & (reach_map_filtered[:,0] <= 0.32) \
+        & (reach_map_filtered[:,1] >= -0.32) & (reach_map_filtered[:,1] <= 0.32) \
         & (reach_map_filtered[:,2] > 0.0) & (reach_map_filtered[:,2] <= 0.383))
     reach_map_filtered = reach_map_filtered[idxs]
-    # Block 1: Torso column: Don't admit points that are (y < 0.185 & (x between -0.26 and 0.15) & (z between 0.383 and 0.75))
-    idxs = np.logical_not((reach_map_filtered[:,1] <= 0.185) \
-        & (reach_map_filtered[:,0] >= -0.26) & (reach_map_filtered[:,0] <= 0.15) \
-        & (reach_map_filtered[:,2] > 0.383) & (reach_map_filtered[:,2] <= 0.75))
+    # Block 1: Near floor: Don't admit points that are (z between -0.4 and -0.2)
+    idxs = np.logical_not((reach_map_filtered[:,2] >= -0.45) &
+                          (reach_map_filtered[:,2] <= -0.35))
     reach_map_filtered = reach_map_filtered[idxs]
-    # Block 2: Torso top: Don't admit points that are (y < 0.26 & (x between -0.26 and 0.2) & (z between 0.75 and 0.89))
-    idxs = np.logical_not((reach_map_filtered[:,1] <= 0.26) \
-        & (reach_map_filtered[:,0] >= -0.26) & (reach_map_filtered[:,0] <= 0.2) \
-        & (reach_map_filtered[:,2] > 0.75) & (reach_map_filtered[:,2] <= 0.89))
+    # Block 2: Body: Don't admit points that are ((y between -0.32 and 0.32) & (x between -0.32 and 0.32) & (z between 0.0 and 0.383))
+    idxs = np.logical_not((reach_map_filtered[:,0] >= -0.2) & (reach_map_filtered[:,0] <= 0.2) \
+        & (reach_map_filtered[:,1] >= -0.2) & (reach_map_filtered[:,1] <= 0.2) \
+        & (reach_map_filtered[:,2] > 0.0) & (reach_map_filtered[:,2] <= 1.0))
     reach_map_filtered = reach_map_filtered[idxs]
-    # Block 3: Head: Don't admit points that are (y < 0.2 & (x between 0.0 and 0.27) & (z between 0.89 and 1.17))
-    idxs = np.logical_not((reach_map_filtered[:,1] <= 0.2) \
-        & (reach_map_filtered[:,0] >= 0.0) & (reach_map_filtered[:,0] <= 0.27) \
-        & (reach_map_filtered[:,2] > 0.89) & (reach_map_filtered[:,2] <= 1.17))
-    reach_map_filtered = reach_map_filtered[idxs]
+    
+    # Specific filtering for the Tiago++ robot:
+    # Block 0: Base: Don't admit points that are (y < 0.3 & (x between -0.32 and 0.32) & (z between 0.0 and 0.383)
+    # idxs = np.logical_not((reach_map_filtered[:,1] <= 0.3) \
+    #     & (reach_map_filtered[:,0] >= -0.32) & (reach_map_filtered[:,0] <= 0.32) \
+    #     & (reach_map_filtered[:,2] > 0.0) & (reach_map_filtered[:,2] <= 0.383))
+    # reach_map_filtered = reach_map_filtered[idxs]
+    # # Block 1: Torso column: Don't admit points that are (y < 0.185 & (x between -0.26 and 0.15) & (z between 0.383 and 0.75))
+    # idxs = np.logical_not((reach_map_filtered[:,1] <= 0.185) \
+    #     & (reach_map_filtered[:,0] >= -0.26) & (reach_map_filtered[:,0] <= 0.15) \
+    #     & (reach_map_filtered[:,2] > 0.383) & (reach_map_filtered[:,2] <= 0.75))
+    # reach_map_filtered = reach_map_filtered[idxs]
+    # # Block 2: Torso top: Don't admit points that are (y < 0.26 & (x between -0.26 and 0.2) & (z between 0.75 and 0.89))
+    # idxs = np.logical_not((reach_map_filtered[:,1] <= 0.26) \
+    #     & (reach_map_filtered[:,0] >= -0.26) & (reach_map_filtered[:,0] <= 0.2) \
+    #     & (reach_map_filtered[:,2] > 0.75) & (reach_map_filtered[:,2] <= 0.89))
+    # reach_map_filtered = reach_map_filtered[idxs]
+    # # Block 3: Head: Don't admit points that are (y < 0.2 & (x between 0.0 and 0.27) & (z between 0.89 and 1.17))
+    # idxs = np.logical_not((reach_map_filtered[:,1] <= 0.2) \
+    #     & (reach_map_filtered[:,0] >= 0.0) & (reach_map_filtered[:,0] <= 0.27) \
+    #     & (reach_map_filtered[:,2] > 0.89) & (reach_map_filtered[:,2] <= 1.17))
+    # reach_map_filtered = reach_map_filtered[idxs]
 
     ## Save filtered reach_map and 3D viz map
     with open(reach_map_file_path+'filt_'+reach_map_file_name+'.pkl', 'wb') as f:

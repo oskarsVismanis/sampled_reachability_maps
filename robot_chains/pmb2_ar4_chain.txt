@@ -1,0 +1,44 @@
+=urdf_chain=
+base_footprint_frame
+ 	base_link_frame
+ 	 	base_imu_link_frame
+ 	 	base_laser_link_frame
+ 	 	base_sonar_03_link_frame
+ 	 	base_sonar_02_link_frame
+ 	 	base_sonar_01_link_frame
+ 	 	base_dock_link_frame
+ 	 	base_antenna_left_link_frame
+ 	 	base_antenna_right_link_frame
+ 	 	suspension_right_link_frame
+ 	 	 	wheel_right_link_frame
+ 	 	suspension_left_link_frame
+ 	 	 	wheel_left_link_frame
+ 	 	caster_front_right_1_link_frame
+ 	 	 	caster_front_right_2_link_frame
+ 	 	caster_front_left_1_link_frame
+ 	 	 	caster_front_left_2_link_frame
+ 	 	caster_back_right_1_link_frame
+ 	 	 	caster_back_right_2_link_frame
+ 	 	caster_back_left_1_link_frame
+ 	 	 	caster_back_left_2_link_frame
+ 	 	base_top_frame
+ 	 	 	fixture_base_frame
+ 	 	 	 	fixture_top_frame
+ 	 	 	 	 	ar4_base_link_frame
+ 	 	 	 	 	 	ar4_link_1_frame
+ 	 	 	 	 	 	 	ar4_link_2_frame
+ 	 	 	 	 	 	 	 	ar4_link_3_frame
+ 	 	 	 	 	 	 	 	 	ar4_link_4_frame
+ 	 	 	 	 	 	 	 	 	 	ar4_link_5_frame
+ 	 	 	 	 	 	 	 	 	 	 ar4_link_6_frame
+ 	 	 	 	 	 	 	 	 	 	  	ar4_ee_link_frame
+ 	 	 	 	 	 	 	 	 	 	  	 	ar4_gripper_base_link_frame
+ 	 	 	 	 	 	 	 	 	 	  	 	 	ar4_gripper_jaw1_link_frame
+ 	 	 	 	 	 	 	 	 	 	  	 	 	ar4_gripper_jaw2_link_frame
+ 	 	 	 	 	 	 	 	 	 	  	 	 	ar4_dummy_mimic_fix_frame
+ 	 	 	 	 	 	 	 	 	 	  	ar4_gripper_grasping_link_frame
+ 	 	 	 	 	 	 	 	 	 	ar4_camera_holder_link_frame
+ 	base_cover_link_frame
+
+=urdf_chain=
+

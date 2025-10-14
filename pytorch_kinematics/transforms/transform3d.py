@@ -265,8 +265,21 @@ class Transform3d:
         """
         Return the inverse of self._matrix.
         """
+        #  original
         return torch.inverse(self._matrix)
 
+        # fix
+        # return torch.linalg.inv(self._matrix)
+        # mats = self._matrix
+        # R = mats[:, :3, :3]            # rotation
+        # t = mats[:, :3, 3:4]           # translation (column vector)
+        # R_T = R.transpose(1, 2)        # transpose of rotation
+        # inv = torch.zeros_like(mats)   # same shape as input
+        # inv[:, :3, :3] = R_T
+        # inv[:, :3, 3:4] = -R_T @ t
+        # inv[:, 3, 3] = 1.0
+        # return inv
+    
     def inverse(self, invert_composed: bool = False):
         """
         Returns a new Transform3D object that represents an inverse of the
@@ -291,7 +304,8 @@ class Transform3d:
 
         if invert_composed:
             # first compose then invert
-            tinv._matrix = torch.inverse(self.get_matrix())
+            # tinv._matrix = torch.inverse(self.get_matrix())
+            tinv._matrix = torch.linalg.inv(self.get_matrix())
         else:
             # self._get_matrix_inverse() implements efficient inverse
             # of self._matrix
