@@ -52,8 +52,7 @@ assert (len(chain.get_joint_parameter_names()) == n_dof), "Incorrect number of D
 print("...\n...")
 # Number of Forward Kinematic solutions to sample
 # N_fk = 1280000000 # 25600000000 # Sampling 20^8 joint configurations. NOTE: Tweak this paramter based on GPU Memory available
-N_fk = 10000000 # for Tiago++ 1000000 works (3.76e+02s); 5000000 works (4.07e+02s); 10000000 doesn't work
-               # for pmb2_ar4 5000000 works (1.96e+02s); 6000000 works (1.95e+02s)
+N_fk = 25600000000 
 # Map resolution and limits
 angular_res = np.pi/8 # or 22.5 degrees per bin)
 r_lim = [-np.pi, np.pi] # NOTE: Using 'intrinsic' euler rotations in XYZ
@@ -69,7 +68,7 @@ cartesian_res = 0.05 # metres
 # z_lim = [-0.35, 2.1]#[-0.15, 1.9]
 x_lim = [-1.2, 1.2]
 y_lim = [-1.2, 1.2]
-z_lim = [-0.5, 1.4]
+z_lim = [-0.5, 1.5]
 x_bins = math.ceil((x_lim[1] - x_lim[0])/cartesian_res)
 y_bins = math.ceil((y_lim[1] - y_lim[0])/cartesian_res)
 z_bins = math.ceil((z_lim[1] - z_lim[0])/cartesian_res)
@@ -97,7 +96,7 @@ offsets = torch.tensor([x_ind_offset, y_ind_offset, z_ind_offset, roll_ind_offse
 
 
 ## Set number of sampled joint configurations as per GPU memory limitations
-num_loops = 500 # 10000 # NOTE: Tweak this paramter based on GPU Memory available
+num_loops = 10000 # 10000 # NOTE: Tweak this paramter based on GPU Memory available
 N_fk_loop = int(N_fk/num_loops)
 save_freq = int(num_loops/100)
 sampling_distr = torch.distributions.uniform.Uniform(joint_pos_min, joint_pos_max) # For sampling joints within limits
@@ -144,6 +143,10 @@ for i in range(num_loops):
     if(torch.sum(indices_6d<0) > 0):
         print("[WARNING: There are some overflow errors in discretization (at lower end)]")
     # Discretize the poses
+    ## for debug
+    # print("poses_6d min:", poses_6d.min(dim=0).values)
+    # print("poses_6d max:", poses_6d.max(dim=0).values)
+    ##
     poses_6d = indices_6d*torch.tensor([cartesian_res,cartesian_res,cartesian_res,angular_res,angular_res,angular_res], dtype=dtype, device=d)
     poses_6d += torch.tensor([(cartesian_res/2)+x_lim[0],(cartesian_res/2)+y_lim[0],(cartesian_res/2)+z_lim[0],(angular_res/2)+r_lim[0],(angular_res/2)+p_lim[0],(angular_res/2)+yaw_lim[0]], dtype=dtype, device=d)
     # Convert to indices in a 2D array
